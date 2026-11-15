@@ -1,0 +1,111 @@
+# Build the Linux release (.tar.gz + .deb) using scripts/build_linux.sh. Independent of build-macos.yml.
+# Runs automatically on pushes to feat/unix (selected by the app maintainer, 2026-09-28), except for
+# documentation-only changes. The Run workflow button only appears when this file exists on the default branch (main).
+# Results can be downloaded from the run's Artifacts section.
+name: Build Linux
+
+on:
+  push:
+    branches: [feat/unix]
+    paths-ignore: ["**.md", "docs/**", "assets/**"]
+  workflow_dispatch:
+
+jobs:
+  build:
+    # Use Ubuntu 22.04's glibc so the build runs on both older and newer distros.
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+
+      # Artifact name includes the version number, matching the filename in README
+      # (e.g. Hupesi-TTS-v1.0.1-amd64.deb) to avoid confusion with older builds.
+      - name: Version
+        shell: bash
+        run: echo "VERSION=$(sed -n 's/^#define AppVersion *"\(.*\)".*/\1/p' scripts/installer.iss)" >> "$GITHUB_ENV"
+
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.12"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: app-desktop/hupesi-tts-app/package-lock.json
+
+      - name: Build
+        run: ./scripts/build_linux.sh
+
+      - name: Smoke test
+        shell: bash
+        run: |
+          dir="$(ls -d dist/Hupesi-TTS-v*-linux-*/ | head -1)"
+          "${dir}Hupesi-TTS" > smoke.log 2>&1 &
+          APP_PID=$!
+          for i in $(seq 1 150); do
+            curl -sf http://127.0.0.1:8001/health | grep -q '"status":"ok"' && break
+            sleep 2
+          done
+          curl -sf http://127.0.0.1:8001/health
+          curl -sf http://127.0.0.1:8001/ | grep -q 'assets/index-'
+          curl -sf -o voice.wav "http://127.0.0.1:8001/api/voices/preview?voice_id=Minh%20%C4%90%E1%BB%A9c"
+          test "$(head -c 4 voice.wav)" = "RIFF"
+          echo "Smoke test OK"
+          # Free port 8001 for the .deb test step (the background process persists across steps).
+          kill $APP_PID
+
+      # The .deb installs into /opt (read-only): the app must move data to ~/HupesiTTS
+      # and copy bundled models there instead of downloading them again.
+      - name: Smoke test .deb
+        shell: bash
+        run: |
+          sleep 3
+          sudo apt-get install -y ./dist/Hupesi-TTS-v*.deb
+          hupesi-tts > deb.log 2>&1 &
+          for i in $(seq 1 150); do
+            curl -sf http://127.0.0.1:8001/health | grep -q '"status":"ok"' && break
+            sleep 2
+          done
+          curl -sf http://127.0.0.1:8001/health
+          curl -sf -o voice.wav "http://127.0.0.1:8001/api/voices/preview?voice_id=Minh%20%C4%90%E1%BB%A9c"
+          test "$(head -c 4 voice.wav)" = "RIFF"
+          test -d "$HOME/HupesiTTS/hf_cache/hub"
+          echo "Smoke test .deb OK"
+
+      - name: Logs on failure
+        if: failure()
+        shell: bash
+        run: |
+          cat smoke.log deb.log || true
+          cat "$HOME/HupesiTTS/hupesi-tts.log" 2>/dev/null || true
+
+      # Upload directly to Release {VERSION} in the public repo: Release assets do not count
+      # against the private repo artifact quota (500 MB on the Free plan; artifact upload can
+      # fail with "Artifact storage quota has been hit"). Requires secret PUBLIC_RELEASE_TOKEN:
+      # fine-grained token, scoped to festusxmutukugithub/hupesi-tts only, with Contents: Read and
+      # write permission. If the Release does not exist, create a draft for the maintainer to
+      # publish; if it exists, replace files with the same name (--clobber).
+      - name: Upload to public repo Release
+        env:
+          GH_TOKEN: ${{ secrets.PUBLIC_RELEASE_TOKEN }}
+          REPO: festusxmutukugithub/hupesi-tts
+        run: |
+          if [ -z "$GH_TOKEN" ]; then
+            echo "Secret PUBLIC_RELEASE_TOKEN is not set, skipping Release upload."
+            exit 0
+          fi
+          if ! gh release view "$VERSION" --repo "$REPO" >/dev/null 2>&1; then
+            # A parallel job may have just created it: if creation fails, checking again is enough.
+            gh release create "$VERSION" --repo "$REPO" --draft --title "Hupesi TTS $VERSION" --notes "Updating..." || gh release view "$VERSION" --repo "$REPO" >/dev/null
+          fi
+          gh release upload "$VERSION" dist/Hupesi-TTS-v*.deb --repo "$REPO" --clobber
+
+      # Fallback when the token is not available. Only .deb (tar.gz is not released since 1.0.2),
+      # kept for 3 days; if the quota is exceeded this does not fail the job because the Release asset still exists.
+      - uses: actions/upload-artifact@v4
+        continue-on-error: true
+        with:
+          name: Hupesi-TTS-v${{ env.VERSION }}-amd64.deb
+          path: dist/Hupesi-TTS-v*.deb
+          if-no-files-found: error
+          retention-days: 3

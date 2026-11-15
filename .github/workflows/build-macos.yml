@@ -1,0 +1,101 @@
+# Build the macOS installer (.dmg) using scripts/build_macos.sh — for both Apple Silicon and Intel.
+# Independent of build-linux.yml. Without a Mac this is the only option: PyInstaller cannot cross-build.
+# GitHub's macOS runners consume Actions minutes at 10x for private repos.
+#
+# Runs automatically on pushes to feat/unix (selected by the app maintainer, 2026-09-28), except for
+# documentation-only changes - macOS runners consume Actions minutes at 10x, so README-only changes do not trigger a build.
+# The Run workflow button only appears when this file exists on the default branch (main).
+# Results can be downloaded from the run's Artifacts section.
+name: Build macOS
+
+on:
+  push:
+    branches: [feat/unix]
+    paths-ignore: ["**.md", "docs/**", "assets/**"]
+  workflow_dispatch:
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-14         # Apple Silicon (M1/M2/M3...)
+            arch: arm64
+          - os: macos-15-intel   # Intel Mac (macos-13 has been retired by GitHub)
+            arch: x86_64
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      # Artifact name includes the version number, matching the filename in README
+      # (e.g. Hupesi-TTS-v1.0.1-macos-arm64.dmg) to avoid confusion with older builds.
+      - name: Version
+        shell: bash
+        run: echo "VERSION=$(sed -n 's/^#define AppVersion *"\(.*\)".*/\1/p' scripts/installer.iss)" >> "$GITHUB_ENV"
+
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.12"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: app-desktop/hupesi-tts-app/package-lock.json
+
+      - name: Build
+        run: ./scripts/build_macos.sh
+
+      # Run the binary inside the .app: the server must start, serve the UI, and synthesize a
+      # voice. The WebKit window opens in the CI machine's graphical session.
+      - name: Smoke test
+        shell: bash
+        run: |
+          "dist/Hupesi TTS.app/Contents/MacOS/Hupesi TTS" > smoke.log 2>&1 &
+          for i in $(seq 1 150); do
+            curl -sf http://127.0.0.1:8001/health | grep -q '"status":"ok"' && break
+            sleep 2
+          done
+          curl -sf http://127.0.0.1:8001/health
+          curl -sf http://127.0.0.1:8001/ | grep -q 'assets/index-'
+          curl -sf -o voice.wav "http://127.0.0.1:8001/api/voices/preview?voice_id=Minh%20%C4%90%E1%BB%A9c"
+          test "$(head -c 4 voice.wav)" = "RIFF"
+          # The microphone permission declaration must be present in the packaged Info.plist.
+          plutil -extract NSMicrophoneUsageDescription raw "dist/Hupesi TTS.app/Contents/Info.plist"
+          echo "Smoke test OK"
+
+      - name: Logs on failure
+        if: failure()
+        shell: bash
+        run: |
+          cat smoke.log || true
+          cat "$HOME/Library/Application Support/Hupesi TTS/hupesi-tts.log" 2>/dev/null || true
+
+      # Upload directly to Release {VERSION} in the public repo (Release assets do not count
+      # against the private repo's 500 MB artifact quota). Requires secret
+      # PUBLIC_RELEASE_TOKEN: fine-grained token, scoped to festusxmutukugithub/hupesi-tts only,
+      # with Contents: Read and write permission. If the Release does not exist, create a draft
+      # for the maintainer to publish; if it exists, replace files with the same name (--clobber).
+      - name: Upload to public repo Release
+        env:
+          GH_TOKEN: ${{ secrets.PUBLIC_RELEASE_TOKEN }}
+          REPO: festusxmutukugithub/hupesi-tts
+        run: |
+          if [ -z "$GH_TOKEN" ]; then
+            echo "Secret PUBLIC_RELEASE_TOKEN is not set, skipping Release upload."
+            exit 0
+          fi
+          if ! gh release view "$VERSION" --repo "$REPO" >/dev/null 2>&1; then
+            # Parallel jobs (arm64 / x86_64) may have just created it: if creation fails, checking again is enough.
+            gh release create "$VERSION" --repo "$REPO" --draft --title "Hupesi TTS $VERSION" --notes "Updating..." || gh release view "$VERSION" --repo "$REPO" >/dev/null
+          fi
+          gh release upload "$VERSION" dist/Hupesi-TTS-v*-macos-*.dmg --repo "$REPO" --clobber
+
+      - uses: actions/upload-artifact@v4
+        continue-on-error: true  # if artifact quota is exceeded, the Release asset still exists
+        with:
+          name: Hupesi-TTS-v${{ env.VERSION }}-macos-${{ matrix.arch }}.dmg
+          path: dist/Hupesi-TTS-v*-macos-*.dmg
+          if-no-files-found: error
+          retention-days: 3  # private repo artifact quota, see build-linux.yml

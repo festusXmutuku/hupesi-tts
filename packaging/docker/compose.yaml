@@ -1,0 +1,26 @@
+# Hupesi TTS running as a speech server. Run from the repository root:
+#   docker compose -f packaging/docker/compose.yaml up -d --build
+# With an NVIDIA card: add -f packaging/docker/compose.gpu.yaml (see README, Docker section).
+name: hupesi-tts
+
+services:
+  app:
+    build:
+      context: ../..
+      dockerfile: packaging/docker/Dockerfile
+    image: hupesi-tts:latest
+    restart: unless-stopped
+    # Use the host network (no NAT) so the app sees the real caller IP: the server
+    # itself (and SSH tunnels) can open the UI, while other machines can only call
+    # the API with a key. With port mapping, every request would appear to come from
+    # Docker's bridge IP and be treated as "another machine", blocking the UI. This
+    # works correctly only on Docker Engine on Linux.
+    network_mode: host
+    volumes:
+      - cit-data:/data
+    # environment:
+    #   PORT: "9000"   # change port (default 8001)
+
+volumes:
+  # Models, history, settings, API key, and cloned voices.
+  cit-data:

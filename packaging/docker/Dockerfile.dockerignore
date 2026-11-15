@@ -1,0 +1,15 @@
+# Used only by packaging/docker/Dockerfile (BuildKit reads <Dockerfile>.dockerignore).
+# ALLOWLIST: the local repo may contain very large dist/, models/, .venv/, etc.
+*
+!pyproject.toml
+!uv.lock
+!README.md
+!LICENSE
+!NOTICE
+!DIEU-KHOAN.md
+!PRIVACY.md
+!THIRD-PARTY-NOTICES.md
+!src/
+!apps/
+!docs/hupesi-tts.md
+!app-desktop/hupesi-tts-app/

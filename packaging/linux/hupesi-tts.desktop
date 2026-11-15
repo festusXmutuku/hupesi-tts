@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=Hupesi TTS
+Comment=Vietnamese text-to-speech and voice cloning
+Comment[vi]=Chuyển văn bản thành giọng nói tiếng Việt
+Exec=hupesi-tts
+Icon=hupesi-tts
+Terminal=true
+Categories=AudioVideo;Audio;
+Keywords=TTS;tieng viet;giong noi;voice;

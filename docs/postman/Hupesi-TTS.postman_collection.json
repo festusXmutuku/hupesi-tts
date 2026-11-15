@@ -1,0 +1,358 @@
+{
+  "info": {
+    "name": "Hupesi TTS API",
+    "description": "Public APIs for Hupesi TTS (full docs: {{baseUrl}}/docs).\n\nHOW TO USE\n1. Import this file into Postman.\n2. Click the collection -> Variables tab: set `baseUrl` (e.g. http://192.168.5.8:8001) and paste your key into `apiKey`.\n   Get the key on the machine running the app: Settings -> Allow other machines to access the API (or ~/HupesiTTS/remote-access.json on Linux).\n3. Run \"Health\" first to verify the connection and key.\n\nThe key is sent automatically via the X-API-Key header (collection Authorization tab).\nWhen calling from the same machine as the app (127.0.0.1), no key is required.\n\nAudio responses (WAV/MP3): in the Response panel choose Save Response -> Save to a file to listen.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "apikey",
+    "apikey": [
+      {
+        "key": "key",
+        "value": "X-API-Key",
+        "type": "string"
+      },
+      {
+        "key": "value",
+        "value": "{{apiKey}}",
+        "type": "string"
+      },
+      {
+        "key": "in",
+        "value": "header",
+        "type": "string"
+      }
+    ]
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://192.168.5.8:8001",
+      "type": "string"
+    },
+    {
+      "key": "apiKey",
+      "value": "PASTE_API_KEY_HERE",
+      "type": "string"
+    },
+    {
+      "key": "voiceId",
+      "value": "Minh Đức",
+      "type": "string"
+    }
+  ],
+  "event": [
+    {
+      "listen": "test",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "if (pm.response.code === 401) {",
+          "  console.warn('401: missing or invalid API key - check the collection apiKey variable.');",
+          "}",
+          "if (pm.response.code === 403) {",
+          "  console.warn('403: the host machine has not enabled \"Allow other machines to access the API\", or the app has not been restarted after enabling it.');",
+          "}"
+        ]
+      }
+    }
+  ],
+  "item": [
+    {
+      "name": "1. Health - check connection",
+      "request": {
+        "method": "GET",
+        "url": {
+          "raw": "{{baseUrl}}/health",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "health"
+          ]
+        },
+        "description": "Server status and the currently loaded model (sample_rate, engine, device)."
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+              "pm.test('Server ready', () => pm.expect(pm.response.json().status).to.eql('ok'));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. List voices",
+      "request": {
+        "method": "GET",
+        "url": {
+          "raw": "{{baseUrl}}/voices",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "voices"
+          ]
+        },
+        "description": "Returns the list of voices: id, name, gender, region, description. Use `id` as voice_id in other APIs."
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+              "pm.test('At least one voice', () => pm.expect(pm.response.json().length).to.be.above(0));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. Generate speech (WAV)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"text\": \"Hello, this is Hupesi TTS running on Linux. [pause 1s] Have a great day.\",\n  \"voice_id\": \"{{voiceId}}\",\n  \"speed\": 1.0,\n  \"temperature\": 0.8,\n  \"format\": \"wav\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/tts/generate",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "tts",
+            "generate"
+          ]
+        },
+        "description": "Returns an audio file. `format`: `wav` or `mp3`. Response headers include X-Duration-Seconds, X-Elapsed-Seconds, X-RTF, X-Sample-Rate.\n\nPause tags: [pause 2s], [pause 500ms] (or [nghỉ 2s]). Emotion tags (v3 Turbo): [cười], [thở dài]."
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+              "pm.test('Audio content', () => pm.expect(pm.response.headers.get('Content-Type')).to.match(/audio/));",
+              "console.log('Audio duration (s):', pm.response.headers.get('X-Duration-Seconds'), '| RTF:', pm.response.headers.get('X-RTF'));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "4. Generate speech with subtitles (JSON: base64 audio + SRT)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"text\": \"The first sentence is used to test subtitles. The second sentence is a bit longer to show timestamps.\",\n  \"voice_id\": \"{{voiceId}}\",\n  \"speed\": 1.0,\n  \"format\": \"wav\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/tts/generate-with-subtitles",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "tts",
+            "generate-with-subtitles"
+          ]
+        },
+        "description": "Returns JSON with base64 audio and SRT subtitles with per-sentence timestamps.\n\nListen and view subtitles in Postman: after Send, open the **Visualize** tab in the Response panel.\n\nFields: audio_base64, format, sample_rate, duration_seconds, elapsed_seconds, rtf, srt, cues[{start,end,text}]."
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+              "const d = pm.response.json();",
+              "pm.test('Has audio and subtitles', () => { pm.expect(d.audio_base64).to.be.a('string').and.not.empty; pm.expect(d.srt).to.be.a('string'); });",
+              "// Visualize tab: audio player from base64 + subtitle table + .srt download button",
+              "const mime = d.format === 'mp3' ? 'audio/mpeg' : 'audio/wav';",
+              "const template = `",
+              "<style>body{font-family:sans-serif;font-size:14px} table{border-collapse:collapse;width:100%} td,th{border:1px solid #ddd;padding:4px 8px;text-align:left} a{margin-right:12px}</style>",
+              "<p><b>{{duration}} s</b> audio · generated in {{elapsed}} s · RTF {{rtf}} · {{sr}} Hz</p>",
+              "<audio controls style='width:100%' src='data:{{mime}};base64,{{audio}}'></audio>",
+              "<p><a download='cit-voice.{{format}}' href='data:{{mime}};base64,{{audio}}'>Download audio</a>",
+              "<a download='cit-voice.srt' href='data:application/x-subrip;charset=utf-8,{{srtUri}}'>Download .srt subtitles</a></p>",
+              "<table><tr><th>Start</th><th>End</th><th>Subtitle</th></tr>",
+              "{{#each cues}}<tr><td>{{start}}</td><td>{{end}}</td><td>{{text}}</td></tr>{{/each}}</table>`;",
+              "pm.visualizer.set(template, {",
+              "  audio: d.audio_base64, mime, format: d.format, duration: d.duration_seconds,",
+              "  elapsed: d.elapsed_seconds, rtf: d.rtf, sr: d.sample_rate, cues: d.cues,",
+              "  srtUri: encodeURIComponent(d.srt)",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "5. Stream (GET) - play while generating",
+      "request": {
+        "method": "GET",
+        "url": {
+          "raw": "{{baseUrl}}/stream?text=This is streaming mode; audio is returned in chunks.&voice_id={{voiceId}}",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "stream"
+          ],
+          "query": [
+            {
+              "key": "text",
+              "value": "This is streaming mode; audio is returned in chunks."
+            },
+            {
+              "key": "voice_id",
+              "value": "{{voiceId}}"
+            }
+          ]
+        },
+        "description": "Chunked WAV: WAV header followed by PCM16 chunks. Postman waits for completion; in a browser/<audio> tag it can play immediately.\n\nThe <audio> tag cannot send headers: append `&api_key=<key>` to the URL."
+      }
+    },
+    {
+      "name": "6. Stream (POST)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"text\": \"For long text, use POST instead of putting it in the URL.\",\n  \"voice_id\": \"{{voiceId}}\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{baseUrl}}/stream",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "stream"
+          ]
+        }
+      }
+    },
+    {
+      "name": "8a. Conversation - by turn list",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"turns\": [\n    { \"speaker\": \"MC\", \"text\": \"Welcome to the Hupesi TTS podcast!\", \"voice_id\": \"Minh Đức\" },\n    { \"speaker\": \"Guest\", \"text\": \"Hello, I'm glad to be here.\", \"voice_id\": \"Trúc Ly\" }\n  ],\n  \"silence_duration\": 0.4,\n  \"speed\": 1.0,\n  \"format\": \"wav\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/tts/conversation",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "tts",
+            "conversation"
+          ]
+        },
+        "description": "Combines multiple dialogue turns, each with its own voice, into one file."
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('HTTP 200', () => pm.response.to.have.status(200));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "8b. Conversation - by script text",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"script\": \"[MC]: Today we're talking about artificial intelligence.\\n[Guest]: This is a very interesting topic.\",\n  \"speaker_mapping\": { \"MC\": \"Minh Đức\", \"Guest\": \"Trúc Ly\" },\n  \"format\": \"wav\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/tts/conversation",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "tts",
+            "conversation"
+          ]
+        },
+        "description": "Each line as `[Name]: line` (or `Name: line`); speaker_mapping maps names to voice_id."
+      }
+    }
+  ]
+}

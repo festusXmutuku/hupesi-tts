@@ -1,0 +1,46 @@
+Hupesi TTS for macOS
+==========================
+
+REQUIREMENTS
+    Mac with Apple chip (M1, M2, M3...): macOS 14 Sonoma or later -> Hupesi-TTS-v1.0.0-macos-arm64.dmg
+    Mac with Intel chip:               macOS 13 Ventura or later  -> Hupesi-TTS-v1.0.0-macos-x86_64.dmg
+    Check your chip: Apple menu -> About This Mac.
+
+INSTALL
+    Drag the "Hupesi TTS" icon into the Applications folder (next to it).
+
+OPEN
+    Launchpad, or Finder -> Applications -> Hupesi TTS.
+    The first launch may take a few extra seconds to prepare the model.
+
+FIRST LAUNCH BLOCKED ("developer cannot be verified")
+    The app is not notarized by Apple, so macOS blocks it on first launch. Allow it once:
+      1. Click "Done" / "OK" to dismiss the alert.
+      2. Go to System Settings -> Privacy & Security, scroll to the bottom.
+      3. Click "Open Anyway" next to Hupesi TTS and enter your Mac password.
+    Or run in Terminal:
+        xattr -dr com.apple.quarantine "/Applications/Hupesi TTS.app"
+
+QUIT
+    Close the app window, or press Cmd+Q.
+
+MICROPHONE
+    The Voice Cloning tab uses the microphone to record a voice sample; on first use
+    macOS will ask for permission, click "Allow".
+
+ALLOW OTHER MACHINES TO CALL THE API
+    1. In the app: Settings -> Allow other machines to access the API -> turn it on and copy the API key.
+    2. Quit the app (Cmd+Q) and open it again. On first run macOS may ask to allow
+       incoming network connections: click "Allow".
+    Other machines can call http://<Mac IP>:8001/... with the header  X-API-Key: <key>
+    API docs: http://<Mac IP>:8001/docs
+
+NOTES
+    The macOS build runs on CPU (Macs do not use NVIDIA cards).
+    Data is stored in ~/Library/Application Support/Hupesi TTS and
+    ~/HupesiTTS. Updating the app (replacing it with a newer version) does not
+    remove your data.
+
+TROUBLESHOOTING
+    Send the file ~/Library/Application Support/Hupesi TTS/hupesi-tts.log
+    to support.

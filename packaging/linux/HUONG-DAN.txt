@@ -1,0 +1,40 @@
+Hupesi TTS - Linux
+
+## Requirements
+- 64-bit Linux (Ubuntu, Debian, Linux Mint and other Debian-based distributions recommended)
+- At least 8 GB RAM and 3 GB free disk space
+- No Internet required after installation (the voice model is included)
+
+## Installation
+Install the `.deb` package:
+
+    sudo apt install ./Hupesi-TTS-<version>-amd64.deb
+
+Replace `<version>` with the downloaded version number.
+
+## Open the app
+- Open **Hupesi TTS** from the application menu, or
+- Run in a terminal: `hupesi-tts`
+
+The app runs in a terminal window and opens the UI in your browser at:
+
+    http://127.0.0.1:8001
+
+Keep the terminal window open while using the app. Close the terminal or press `Ctrl+C` to stop.
+
+## Notes
+- On first launch, you must accept the Terms of Use.
+- Data (history, custom voices, pronunciation dictionary, settings) is stored in `~/HupesiTTS/`.
+- Models and caches are stored in the app data directories used by Hupesi TTS.
+- To allow other devices on the LAN to access the API/UI (when enabled in Settings), open port 8001 if your firewall is enabled:
+
+    sudo ufw allow 8001/tcp
+
+## Troubleshooting
+- **UI does not open automatically:** open `http://127.0.0.1:8001` manually in your browser.
+- **Port 8001 is in use:** close the existing app instance, change the port in Settings, or restart the machine.
+- **Another device cannot connect:** enable remote access in Settings, restart if required, and check firewall/network rules.
+
+## Uninstall
+
+    sudo apt remove hupesi-tts

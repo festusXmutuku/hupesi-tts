@@ -1,0 +1,19 @@
+name: Feature request
+description: An idea to improve the app
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: van-de
+    attributes:
+      label: What problem are you facing?
+      description: Describe what you want to do that the app does not currently support.
+    validations:
+      required: true
+  - type: textarea
+    id: giai-phap
+    attributes:
+      label: What would you like the app to do?
+  - type: textarea
+    id: cach-khac
+    attributes:
+      label: How are you working around it today?

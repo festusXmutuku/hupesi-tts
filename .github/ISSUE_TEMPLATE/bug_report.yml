@@ -1,0 +1,59 @@
+name: Bug report
+description: The app behaves incorrectly, freezes, or reports an error
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for reporting a bug. For security vulnerabilities, do not report them here; see SECURITY.md.
+  - type: textarea
+    id: mo-ta
+    attributes:
+      label: What is the bug?
+      description: What you see, and what you expected to see.
+    validations:
+      required: true
+  - type: textarea
+    id: cac-buoc
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Open the ... tab
+        2. Paste the text ...
+        3. Click ...
+    validations:
+      required: true
+  - type: input
+    id: phien-ban
+    attributes:
+      label: App version
+      description: See Settings → Update & information.
+      placeholder: "1.0.6"
+    validations:
+      required: true
+  - type: dropdown
+    id: he-dieu-hanh
+    attributes:
+      label: Operating system
+      options:
+        - Windows
+        - macOS
+        - Linux
+    validations:
+      required: true
+  - type: dropdown
+    id: mo-hinh
+    attributes:
+      label: Model in use
+      options:
+        - VieNeu-TTS v3 Turbo (CPU)
+        - VieNeu-TTS v3 Turbo (GPU)
+        - VieNeu-TTS v3 Nano
+        - Supertonic 3
+        - Kokoro
+        - Not sure
+  - type: textarea
+    id: chan-doan
+    attributes:
+      label: Diagnostic file
+      description: On Windows, run chan-doan.bat next to the .exe, then drag the chan-doan.txt file here. Include hupesi-tts.log if available.
